@@ -1032,3 +1032,272 @@ void viewPendingComplaints(const ComplaintList *list)
     if (!found)
         printf("There are no pending complaints.\n");
 }
+/*
+FILE HANDLING, RESOLVED HISTORY & STATISTICS
+Md. Shifat
+
+ */
+
+int archiveResolvedComplaint(const Complaint *complaint)
+{
+    char path[512];
+    FILE *file;
+    const char *id;
+
+    getResolvedFilePath(path, sizeof(path));
+
+    file = fopen(path, "a");
+
+    if (file == NULL) {
+        printf("\nWARNING: Could not save resolved complaint history.\n");
+        return 0;
+    }
+
+    if (complaint->reporterType == STUDENT)
+        id = complaint->reporterId.studentId;
+    else
+        id = complaint->reporterId.staffId;
+
+    fprintf(file,
+            "%d|%s|%d|%s|%s|%d|%s|%d|%d|%s|%s\n",
+            complaint->complaintId,
+            complaint->name,
+            complaint->reporterType,
+            id,
+            complaint->location,
+            complaint->category,
+            complaint->description,
+            complaint->priority,
+            RESOLVED,
+            complaint->assignedTo,
+            complaint->date);
+
+    fclose(file);
+    return 1;
+}
+
+int countResolvedForUser(ReporterType type, const char *id)
+{
+    char path[512];
+    FILE *file;
+    char line[1200];
+    int count = 0;
+
+    getResolvedFilePath(path, sizeof(path));
+
+    file = fopen(path, "r");
+
+    if (file == NULL)
+        return 0;
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *fields[11];
+        char *token;
+        int n = 0;
+
+        trimNewline(line);
+
+        token = strtok(line, "|");
+
+        while (token != NULL && n < 11) {
+            fields[n++] = token;
+            token = strtok(NULL, "|");
+        }
+
+        if (n == 11 &&
+            atoi(fields[2]) == type &&
+            strcmp(fields[3], id) == 0) {
+            count++;
+        }
+    }
+
+    fclose(file);
+    return count;
+}
+
+void viewMyResolvedHistory(ReporterType type, const char *userId)
+{
+    char path[512];
+    FILE *file;
+    char line[1200];
+    int found = 0;
+
+    getResolvedFilePath(path, sizeof(path));
+
+    file = fopen(path, "r");
+
+    printf("\n========== MY RESOLVED HISTORY ==========\n");
+
+    if (file == NULL) {
+        printf("You have no resolved complaints.\n");
+        return;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *fields[11];
+        char *token;
+        int n = 0;
+
+        trimNewline(line);
+
+        token = strtok(line, "|");
+
+        while (token != NULL && n < 11) {
+            fields[n++] = token;
+            token = strtok(NULL, "|");
+        }
+
+        if (n == 11 &&
+            atoi(fields[2]) == type &&
+            strcmp(fields[3], userId) == 0) {
+
+            printf("\n-----------------------------------------------\n");
+            printf("Complaint ID : %s\n", fields[0]);
+            printf("Location     : %s\n", fields[4]);
+            printf("Category     : %s\n",
+                   categoryName((Category)atoi(fields[5])));
+            printf("Description  : %s\n", fields[6]);
+            printf("Priority     : %s\n",
+                   priorityName((Priority)atoi(fields[7])));
+            printf("Status       : Resolved\n");
+            printf("Assigned To  : %s\n", fields[9]);
+            printf("Date         : %s\n", fields[10]);
+
+            found = 1;
+        }
+    }
+
+    fclose(file);
+
+    if (!found)
+        printf("You have no resolved complaints.\n");
+}
+
+void viewResolvedHistory(void)
+{
+    char path[512];
+    FILE *file;
+    char line[1200];
+    int count = 0;
+
+    getResolvedFilePath(path, sizeof(path));
+
+    file = fopen(path, "r");
+
+    printf("\n========== RESOLVED COMPLAINT HISTORY ==========\n");
+
+    if (file == NULL) {
+        printf("No resolved complaints yet.\n");
+        return;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *fields[11];
+        char *token;
+        int n = 0;
+
+        trimNewline(line);
+
+        token = strtok(line, "|");
+
+        while (token != NULL && n < 11) {
+            fields[n++] = token;
+            token = strtok(NULL, "|");
+        }
+
+        if (n == 11) {
+            printf("\n-----------------------------------------------\n");
+            printf("Complaint ID : %s\n", fields[0]);
+            printf("Name         : %s\n", fields[1]);
+            printf("Location     : %s\n", fields[4]);
+            printf("Category     : %s\n",
+                   categoryName((Category)atoi(fields[5])));
+            printf("Description  : %s\n", fields[6]);
+            printf("Priority     : %s\n",
+                   priorityName((Priority)atoi(fields[7])));
+            printf("Status       : Resolved\n");
+            printf("Assigned To  : %s\n", fields[9]);
+            printf("Date         : %s\n", fields[10]);
+
+            count++;
+        }
+    }
+
+    fclose(file);
+
+    if (count == 0)
+        printf("No resolved complaints yet.");
+    else
+        printf("\nTotal resolved complaints: %d\n", count);
+}
+
+void showStatistics(const ComplaintList *list)
+{
+    int pending = 0;
+    int inProgress = 0;
+    int rejected = 0;
+    int urgent = 0;
+    int resolvedHistory = 0;
+    int i;
+
+    for (i = 0; i < list->size; i++) {
+        if (list->items[i].status == PENDING)
+            pending++;
+
+        if (list->items[i].status == IN_PROGRESS)
+            inProgress++;
+
+        if (list->items[i].status == REJECTED)
+            rejected++;
+
+        if (list->items[i].priority == URGENT)
+            urgent++;
+    }
+
+    {
+        char path[512];
+        FILE *file;
+        char line[1200];
+
+        getResolvedFilePath(path, sizeof(path));
+        file = fopen(path, "r");
+
+        if (file != NULL) {
+            while (fgets(line, sizeof(line), file) != NULL) {
+                if (strlen(line) > 1)
+                    resolvedHistory++;
+            }
+            fclose(file);
+        }
+    }
+
+    printf("\n========== COMPLAINT STATISTICS ==========\n");
+    printf("Active Complaints    : %d\n", list->size);
+    printf("Pending              : %d\n", pending);
+    printf("In Progress          : %d\n", inProgress);
+    printf("Rejected             : %d\n", rejected);
+    printf("Urgent Active        : %d\n", urgent);
+    printf("Resolved History     : %d\n", resolvedHistory);
+    printf("-----------------------------------------------\n");
+    printf("Total Recorded       : %d\n",
+           list->size + resolvedHistory);
+
+    if (list->size > 0) {
+        printf("Active Complaint IDs : ");
+        displayComplaintIdsRecursively(list, 0);
+        printf("\n");
+    }
+}
+
+void displayComplaintIdsRecursively(const ComplaintList *list, int index)
+{
+    if (index >= list->size)
+        return;
+
+    printf("%d", list->items[index].complaintId);
+
+    if (index < list->size - 1)
+        printf(", ");
+
+    displayComplaintIdsRecursively(list, index + 1);
+}
