@@ -735,3 +735,300 @@ void trackMyComplaint(const ComplaintList *list, ReporterType type,
     printf("\n========== COMPLAINT STATUS ==========\n");
     printComplaint(c);
 }
+
+/* MANAGEMENT PORTAL(Alif)*/
+
+int managementLogin(void)
+{
+    const char correctPassword[] = "admin123";
+    char password[50];
+    int attempt;
+
+    printf("\n========== MANAGEMENT LOGIN ==========\n");
+
+    for (attempt = 1; attempt <= 3; attempt++) {
+        readString("Enter management password: ",
+                   password, sizeof(password));
+
+        if (strcmp(password, correctPassword) == 0) {
+            printf("Login successful.\n");
+            return 1;
+        }
+
+        printf("Incorrect password. Attempts left: %d\n",
+               3 - attempt);
+    }
+
+    printf("Login failed.\n");
+    return 0;
+}
+
+void managementPortal(ComplaintList *list)
+{
+    int choice;
+
+    while (1) {
+        printf("\n===============================================\n");
+        printf("             MANAGEMENT PORTAL\n");
+        printf("              CampusCare Admin\n");
+        printf("===============================================\n");
+        printf("1. View All Complaints\n");
+        printf("2. Search Complaint\n");
+        printf("3. Update Complaint\n");
+        printf("4. Assign Maintenance Staff\n");
+        printf("5. Delete Complaint\n");
+        printf("6. View Pending Complaints\n");
+        printf("7. View Resolved History\n");
+        printf("8. Complaint Statistics\n");
+        printf("0. Logout\n");
+        printf("-----------------------------------------------\n");
+        printf("All changes are saved automatically.\n");
+
+        choice = readInt("Enter your choice: ", 0, 8);
+
+        switch (choice) {
+            case 1:
+                viewAllComplaints(list);
+                break;
+
+            case 2:
+                searchComplaint(list);
+                break;
+
+            case 3:
+                updateComplaint(list);
+                break;
+
+            case 4:
+                assignStaff(list);
+                break;
+
+            case 5:
+                deleteComplaint(list);
+                break;
+
+            case 6:
+                viewPendingComplaints(list);
+                break;
+
+            case 7:
+                viewResolvedHistory();
+                break;
+
+            case 8:
+                showStatistics(list);
+                break;
+
+            case 0:
+                printf("Management logged out.\n");
+                return;
+        }
+    }
+}
+
+void viewAllComplaints(const ComplaintList *list)
+{
+    int i;
+
+    printf("\n========== ALL ACTIVE COMPLAINTS ==========\n");
+
+    if (list->size == 0) {
+        printf("There are no active complaints.\n");
+        return;
+    }
+
+    for (i = 0; i < list->size; i++)
+        printComplaint(&list->items[i]);
+
+    printf("\nTotal active complaints: %d\n", list->size);
+}
+
+void searchComplaint(const ComplaintList *list)
+{
+    int id;
+    int index;
+
+    id = readInt("Enter Complaint ID: ", 1001, 999999);
+    index = findComplaint(list, id);
+
+    if (index == -1) {
+        printf("Complaint not found in active complaints.\n");
+        printf("Check View Resolved History if necessary.\n");
+        return;
+    }
+
+    printf("\n========== SEARCH RESULT ==========\n");
+    printComplaint(&list->items[index]);
+}
+
+void updateComplaint(ComplaintList *list)
+{
+    int id;
+    int index;
+    int choice;
+    Complaint *c;
+
+    id = readInt("Enter Complaint ID: ", 1001, 999999);
+    index = findComplaint(list, id);
+
+    if (index == -1) {
+        printf("Complaint not found.\n");
+        return;
+    }
+
+    c = &list->items[index];
+
+    printf("\nCurrent complaint:\n");
+    printComplaint(c);
+
+    printf("\n1. Change Priority\n");
+    printf("2. Change Status\n");
+    printf("3. Change Description\n");
+    printf("4. Change Location\n");
+    printf("0. Cancel\n");
+
+    choice = readInt("Choose option: ", 0, 4);
+
+    switch (choice) {
+        case 1:
+            printf("\n1. Low\n");
+            printf("2. Medium\n");
+            printf("3. High\n");
+            printf("4. Urgent\n");
+
+            c->priority = (Priority)readInt(
+                "New priority: ", 1, 4);
+
+            saveData(list);
+            printf("Priority updated and saved.\n");
+            break;
+
+        case 2:
+            printf("\n1. Pending\n");
+            printf("2. In Progress\n");
+            printf("3. Resolved\n");
+            printf("4. Rejected\n");
+
+            {
+                Status newStatus =
+                    (Status)readInt("New status: ", 1, 4);
+
+                if (newStatus == RESOLVED) {
+
+                    if (!archiveResolvedComplaint(c)) {
+                        printf("Complaint was NOT resolved because its history "
+                               "could not be saved.\n");
+                        return;
+                    }
+
+                    removeComplaint(list, index);
+                    saveData(list);
+
+                    printf("\nComplaint #%d resolved successfully.\n", id);
+                    printf("It was moved to resolved complaint history.\n");
+                } else {
+                    c->status = newStatus;
+                    saveData(list);
+                    printf("Status updated and saved.\n");
+                }
+            }
+            break;
+
+        case 3:
+            readString("New description: ",
+                       c->description,
+                       sizeof(c->description));
+
+            saveData(list);
+            printf("Description updated and saved.\n");
+            break;
+
+        case 4:
+            readString("New location: ",
+                       c->location,
+                       sizeof(c->location));
+
+            saveData(list);
+            printf("Location updated and saved.\n");
+            break;
+
+        case 0:
+            printf("Update cancelled.\n");
+            break;
+    }
+}
+
+void assignStaff(ComplaintList *list)
+{
+    int id;
+    int index;
+    Complaint *c;
+
+    id = readInt("Enter Complaint ID: ", 1001, 999999);
+    index = findComplaint(list, id);
+
+    if (index == -1) {
+        printf("Complaint not found.\n");
+        return;
+    }
+
+    c = &list->items[index];
+
+    readString("Enter maintenance staff name: ",
+               c->assignedTo,
+               sizeof(c->assignedTo));
+
+    if (c->status == PENDING)
+        c->status = IN_PROGRESS;
+
+    saveData(list);
+
+    printf("Maintenance staff assigned successfully.\n");
+    printf("Complaint status is now: %s\n",
+           statusName(c->status));
+}
+
+void deleteComplaint(ComplaintList *list)
+{
+    int id;
+    int index;
+
+    id = readInt("Enter Complaint ID: ", 1001, 999999);
+    index = findComplaint(list, id);
+
+    if (index == -1) {
+        printf("Complaint not found.\n");
+        return;
+    }
+
+    printComplaint(&list->items[index]);
+
+    printf("\nThis permanently removes the active complaint.\n");
+    printf("Resolved complaints should be closed using Update -> Resolved.\n");
+
+    if (readInt("Type 1 to confirm deletion, 0 to cancel: ", 0, 1) == 1) {
+        removeComplaint(list, index);
+        saveData(list);
+        printf("Complaint deleted and data saved.\n");
+    } else {
+        printf("Deletion cancelled.\n");
+    }
+}
+
+void viewPendingComplaints(const ComplaintList *list)
+{
+    int i;
+    int found = 0;
+
+    printf("\n========== PENDING COMPLAINTS ==========\n");
+
+    for (i = 0; i < list->size; i++) {
+        if (list->items[i].status == PENDING) {
+            printComplaint(&list->items[i]);
+            found = 1;
+        }
+    }
+
+    if (!found)
+        printf("There are no pending complaints.\n");
+}
