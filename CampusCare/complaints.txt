@@ -5,4 +5,3 @@
 1005|Tashfia|2|2510018|CSE building|4|not fast enough|4|1|Not assigned|2026-08-31
 1006|shanewaj raj|1|2510045|cse building 4th floor washroom|3|the flush doesn't work|4|1|Not assigned|2026-08-31
 1007|Hamza|1|2510020|Library|5|chairs are broken|2|1|Not assigned|2026-09-02
-1008|hamza|1|2510020|CSE Building|4|slow internet speed|3|1|Not assigned|2026-09-02
